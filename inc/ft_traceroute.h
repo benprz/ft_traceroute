@@ -15,5 +15,7 @@
                            "\x20\x21\x22\x23\x24\x25\x26\x27"
 #define ICMP_PAYLOAD_CHUNK_SIZE 40
 
+// utils functions
+uint16_t calculate_checksum(uint16_t *packet, int len);
 
 #endif

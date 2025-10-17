@@ -15,17 +15,20 @@ SRC =	main.c \
 OBJ_DIR = .obj/
 OBJ = $(SRC:%.c=$(OBJ_DIR)%.o)
 
-.PHONY : all clean fclean re $(EXE)
+.PHONY : all clean fclean re $(EXE) libft
 
-all: $(EXE) run
+all: libft $(EXE) run
 
 $(EXE): $(OBJ)
-	$(CC) $(CFLAGS) $(OBJ) -o $(EXE) -lm
+	$(CC) $(CFLAGS) $(OBJ) -o $(EXE)
 	@echo "------------\n"
 
 $(OBJ_DIR)%.o: $(SRC_DIR)%.c $(addprefix $(INC_DIR),$(INC))
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@ -I $(INC_DIR)
+
+libft: libft/
+	$(MAKE) -C libft/
 
 run:
 	./$(EXE)
