@@ -57,8 +57,9 @@ static int	setup_sockets(struct addrinfo *addr_infos, int *udp_sock, int *icmp_s
 
 int main(int argc, char *argv[])
 {
-	if (argc < 2 || argc > 3 || (argc >= 2 && ft_strcmp(argv[1], "-h") == 0)) {
-		fprintf(stderr, "Usage: %s <host>\n", argv[0]);
+	if (argc < 2 || argc > 3 || 
+		(argc >= 2 && (ft_strcmp(argv[1], "-h") == 0 || ft_strcmp(argv[1], "--help") == 0))) {
+		fprintf(stderr, "Usage: %s <host>\n", argv[0]);	
 		return 1;
 	}
 
