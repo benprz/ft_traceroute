@@ -23,7 +23,7 @@ int	 run_probe(int udp_sock, int icmp_sock, struct sockaddr_in *dst,
 				char hostnames[][NI_MAXHOST],
 				int *reached_destination);
 
-void print_results(int ttl, char router_ips[][INET_ADDRSTRLEN],
+void print_current_hop_results(int ttl, char router_ips[][INET_ADDRSTRLEN],
 				   char hostnames[][NI_MAXHOST], double *rtts);
 
 // utils functions

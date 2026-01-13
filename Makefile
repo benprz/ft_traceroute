@@ -30,7 +30,7 @@ $(OBJ_DIR)%.o: $(SRC_DIR)%.c $(addprefix $(INC_DIR),$(INC))
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@ -I $(INC_DIR)
 
-run:
+run: all
 	sudo ./$(EXE) 42.fr
 
 strace: $(EXE)

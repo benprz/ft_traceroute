@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
 			run_probe(udp_sock, icmp_sock, addr, probe,
 					  rtts, router_ips, hostnames, &reached_destination);
 
-		print_results(ttl, router_ips, hostnames, rtts);
+		print_current_hop_results(ttl, router_ips, hostnames, rtts);
 
 		if (reached_destination) {
 			close(udp_sock);

@@ -1,6 +1,7 @@
 #include "ft_traceroute.h"
 
 #include <stdio.h>
+#include <stdbool.h>
 
 static void	print_hostname_ip(char *hostname, char *ip)
 {
@@ -11,13 +12,13 @@ static void	print_hostname_ip(char *hostname, char *ip)
 	}
 }
 
-static void	print_single_line(int ttl, int first_valid_idx,
+static void	print_single_line(int ttl, int valid_probe_index,
 							  char router_ips[][INET_ADDRSTRLEN],
 							  char hostnames[][NI_MAXHOST],
 							  double *rtts)
 {
 	printf("%2d  ", ttl);
-	print_hostname_ip(hostnames[first_valid_idx], router_ips[first_valid_idx]);
+	print_hostname_ip(hostnames[valid_probe_index], router_ips[valid_probe_index]);
 	for (int i = 0; i < NUM_PROBES; i++) {
 		if (rtts[i] >= 0) {
 			printf("%.3f ms", rtts[i]);
@@ -33,12 +34,12 @@ static void	print_single_line(int ttl, int first_valid_idx,
 static void	print_multi_line(int ttl, char router_ips[][INET_ADDRSTRLEN],
 							 char hostnames[][NI_MAXHOST], double *rtts)
 {
-	int first_printed = 0;
+	bool first_printed_probe = true;
 	for (int i = 0; i < NUM_PROBES; i++) {
-		if (rtts[i] >= 0 && router_ips[i][0]) {
-			if (!first_printed) {
+		if (router_ips[i][0]) {
+			if (first_printed_probe) {
 				printf("%2d  ", ttl);
-				first_printed = 1;
+				first_printed_probe = false;
 			} else {
 				printf("     ");
 			}
@@ -48,28 +49,30 @@ static void	print_multi_line(int ttl, char router_ips[][INET_ADDRSTRLEN],
 	}
 }
 
-void	print_results(int ttl, char router_ips[][INET_ADDRSTRLEN],
+void	print_current_hop_results(int ttl, char router_ips[][INET_ADDRSTRLEN],
 						  char hostnames[][NI_MAXHOST], double *rtts)
 {
-	int has_reply = 0;
-	int first_valid_idx = -1;
-	int all_same = 1;
+	bool has_a_reply = false;
+	bool all_replies_from_same_ip = true;
+	int valid_probe_index = -1;
 
 	for (int i = 0; i < NUM_PROBES; i++) {
 		if (router_ips[i][0] != 0) {
-			has_reply = 1;
-			if (first_valid_idx == -1) {
-				first_valid_idx = i;
-			} else if (ft_strcmp(router_ips[first_valid_idx], router_ips[i]) != 0) {
-				all_same = 0;
+			has_a_reply = true;
+			if (valid_probe_index == -1) {
+				valid_probe_index = i;
+			} 
+			// check if all replies are from the same IP
+			else if (ft_strcmp(router_ips[valid_probe_index], router_ips[i]) != 0) {
+				all_replies_from_same_ip = false;
 			}
 		}
 	}
 
-	if (!has_reply) {
+	if (!has_a_reply) {
 		printf("%2d  * * *\n", ttl);
-	} else if (all_same && first_valid_idx >= 0) {
-		print_single_line(ttl, first_valid_idx, router_ips, hostnames, rtts);
+	} else if (all_replies_from_same_ip && valid_probe_index >= 0) {
+		print_single_line(ttl, valid_probe_index, router_ips, hostnames, rtts);
 	} else {
 		print_multi_line(ttl, router_ips, hostnames, rtts);
 	}

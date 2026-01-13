@@ -19,7 +19,7 @@ static void	store_probe_info(struct sockaddr_in *addr, int probe,
 			   hostnames[probe], NI_MAXHOST, NULL, 0, 0);
 }
 
-int	run_probe(int udp_sock, int icmp_sock, struct sockaddr_in *dst,
+int	run_probe(int udp_sock, int icmp_sock, struct sockaddr_in *addr,
 				int probe, double *rtts,
 				char router_ips[][INET_ADDRSTRLEN],
 				char hostnames[][NI_MAXHOST],
@@ -30,8 +30,8 @@ int	run_probe(int udp_sock, int icmp_sock, struct sockaddr_in *dst,
 		fprintf(stderr, "gettimeofday error: %s\n", strerror(errno));
 		return (-1);
 	}
-	
-	if (sendto(udp_sock, NULL, 0, 0, (struct sockaddr *)dst, sizeof(struct sockaddr_in)) < 0) {
+
+	if (sendto(udp_sock, NULL, 0, 0, (struct sockaddr *)addr, sizeof(struct sockaddr_in)) < 0) {
 		fprintf(stderr, "sendto error: %s\n", strerror(errno));
 		return (-1);
 	}
@@ -48,16 +48,23 @@ int	run_probe(int udp_sock, int icmp_sock, struct sockaddr_in *dst,
 	}
 
 	if (ret > 0 && FD_ISSET(icmp_sock, &readfds)) {
-		char buffer[1024];
+		unsigned char buffer[1024];
 		struct sockaddr_in recv_addr;
 		socklen_t recv_addrlen = sizeof(recv_addr);
 		int recv_len = recvfrom(icmp_sock, buffer, sizeof(buffer), 0,
 								(struct sockaddr *)&recv_addr, &recv_addrlen);
 		if (recv_len >= 0) {
-			struct ip *ip_hdr = (struct ip *)buffer;
-			int ip_hdr_len = ip_hdr->ip_hl * 4;
+			int ip_hdr_len = ((struct ip *)buffer)->ip_hl * 4; // 32 bits words to bytes (usually 5 words)
 			struct icmphdr *icmp_hdr = (struct icmphdr *)(buffer + ip_hdr_len);
 			if (icmp_hdr->type == ICMP_TIME_EXCEEDED || icmp_hdr->type == ICMP_DEST_UNREACH) {
+				// A part of the UDP packet is embedded in the ICMP error message
+				// Only process ICMP messages that are related to our probe requests
+				struct ip *embedded_ip = (struct ip *)(buffer + ip_hdr_len + sizeof(struct icmphdr));
+
+				if ((embedded_ip->ip_p != IPPROTO_UDP) || \
+					(embedded_ip->ip_dst.s_addr != addr->sin_addr.s_addr))
+					return 0;
+
 				struct timeval recv_time;
 				if (gettimeofday(&recv_time, NULL) != 0) {
 					fprintf(stderr, "gettimeofday error: %s\n", strerror(errno));
