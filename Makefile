@@ -10,14 +10,17 @@ EXE = ft_traceroute
 
 SRC_DIR = src/
 SRC =	main.c \
-		utils.c
+		probe.c \
+		output.c \
+		ft_strcmp.c \
+		ft_memset.c
 
 OBJ_DIR = .obj/
 OBJ = $(SRC:%.c=$(OBJ_DIR)%.o)
 
-.PHONY : all clean fclean re $(EXE) libft
+.PHONY : all clean fclean re $(EXE)
 
-all: libft $(EXE) run
+all: $(EXE)
 
 $(EXE): $(OBJ)
 	$(CC) $(CFLAGS) $(OBJ) -o $(EXE)
@@ -27,11 +30,8 @@ $(OBJ_DIR)%.o: $(SRC_DIR)%.c $(addprefix $(INC_DIR),$(INC))
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@ -I $(INC_DIR)
 
-libft: libft/
-	$(MAKE) -C libft/
-
 run:
-	./$(EXE)
+	sudo ./$(EXE) 42.fr
 
 strace: $(EXE)
 	strace ./$(EXE)

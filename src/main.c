@@ -2,85 +2,116 @@
 
 #include <errno.h>
 #include <stdio.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
 #include <string.h>
-#include <sys/time.h>
-#include <linux/icmp.h>
-#include <unistd.h>
-#include <linux/if_ether.h>
 
-#define MAX_HOPS 30
+static int	resolve_addr_infos(const char *host, struct addrinfo **addr_infos,
+							struct sockaddr_in **addr, char addr_ip[INET_ADDRSTRLEN])
+{
+	struct addrinfo hints = {0};
 
-// int parse_host(char *host)
-// {
-// 	struct addrinfo hints = {0};
-// 	hints.ai_family = AF_INET;
-// 	hints.ai_socktype = SOCK_STREAM;
-// 	hints.ai_protocol = IPPROTO_TCP;
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_DGRAM;
+	if (getaddrinfo(host, NULL, &hints, addr_infos) != 0) {
+		fprintf(stderr, "traceroute: unknown host %s\n", host);
+		return (-1);
+	}
+	if ((*addr_infos)->ai_addrlen != sizeof(struct sockaddr_in) || (*addr_infos)->ai_family != AF_INET) {
+		fprintf(stderr, "traceroute: invalid address length or family\n");
+		return (-1);
+	}
+	*addr = (struct sockaddr_in *)(*addr_infos)->ai_addr;
+	inet_ntop(AF_INET, &(*addr)->sin_addr, addr_ip, INET_ADDRSTRLEN);
+	return (0);
+}
 
-// 	if (getaddrinfo(host, NULL, &hints, &g_ping.host) != 0)
-// 	{
-// 		error(EXIT_FAILURE, 0, "unknown host");
-// 	}
-
-// 	g_ping.hostarg = host;
-
-// 	struct sockaddr_in *ipv4 = (struct sockaddr_in *)g_ping.host->ai_addr;
-// 	void *addr = &(ipv4->sin_addr);
-// 	inet_ntop(g_ping.host->ai_family, addr, g_ping.hostip, INET_ADDRSTRLEN);
-
-// 	return 0;
-// }
-
-int main() {
-    int sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
-    if (sockfd < 0) {
-    	fprintf(stderr, "socket error: %s\n", strerror(errno));
-		return -1;
+static int	setup_sockets(struct addrinfo *addr_infos, int *udp_sock, int *icmp_sock)
+{
+	*udp_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (*udp_sock < 0)
+		return (fprintf(stderr, "socket error: %s\n", strerror(errno)), -1);
+	*icmp_sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+	if (*icmp_sock < 0) {
+		fprintf(stderr, "socket error (ICMP): %s\n", strerror(errno));
+		close(*udp_sock);
+		return (-1);
 	}
 
-
-    struct sockaddr_in addr = {
-        .sin_family = AF_INET,
-        .sin_port = htons(80),
-        .sin_addr.s_addr = inet_addr("127.0.0.1")
-    };
-
-
-    unsigned char packet[PACKET_SIZE];
-
-   	// icmp header template for echo request
-	struct icmphdr icmp_hdr = {
-		.type = ICMP_ECHO,
-		.code = 0,
-		.un.echo.id = getpid(),
+	struct sockaddr_in srcaddr = {
+		.sin_family = AF_INET,
+		.sin_port = htons(0),
+		.sin_addr.s_addr = INADDR_ANY
 	};
+	if (bind(*udp_sock, (struct sockaddr *)&srcaddr, sizeof(srcaddr)) < 0) {
+		fprintf(stderr, "bind error: %s\n", strerror(errno));
+		close(*udp_sock);
+		close(*icmp_sock);
+		return (-1);
+	}
 
-	bzero(packet, ICMP_PACKET_SIZE);
-	icmp_hdr.un.echo.sequence = htons(0);
-	memcpy(packet, &icmp_hdr, sizeof(struct icmphdr));
-	gettimeofday((struct timeval *)(packet + sizeof(struct icmphdr)), NULL);
-	memcpy(packet + sizeof(struct icmphdr) + sizeof(struct timeval), ICMP_PAYLOAD_CHUNK, ICMP_PAYLOAD_CHUNK_SIZE);
+	int val = IP_PMTUDISC_DONT;
+	setsockopt(*udp_sock, SOL_IP, IP_MTU_DISCOVER, &val, sizeof(val));
 
-	uint16_t checksum = calculate_checksum((uint16_t *)packet, ICMP_PACKET_SIZE);
-	packet[2] = checksum & 0xff; // big endian: second byte
-	packet[3] = checksum >> 8; // big endian: first byte
+	((struct sockaddr_in *)addr_infos->ai_addr)->sin_port = htons(PORT);
+	return (0);
+}
 
-    for (int i = 1; i < MAX_HOPS; i++) {
-    	setsockopt(sockfd, IPPROTO_IP, IP_TTL, &i, sizeof(i));
-     	sendto(sockfd, packet, sizeof(packet), 0, (struct sockaddr*)&addr, sizeof(struct sockaddr_in));
+int main(int argc, char *argv[])
+{
+	if (argc < 2 || argc > 3 || (argc >= 2 && ft_strcmp(argv[1], "-h") == 0)) {
+		fprintf(stderr, "Usage: %s <host>\n", argv[0]);
+		fprintf(stderr, "Options:\n  -h\tShow this help message\n");
+		return 1;
+	}
 
+	if (getuid() != 0) {
+		fprintf(stderr, "Error: This program requires root privileges.\n");
+		return 1;
+	}
 
-      	char buffer[1024] = { 0 };
-      	recvfrom(sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
-       	struct ip* ip_header = (struct ip*)(buffer + sizeof(struct ethhdr));
-        struct in_addr* recv_addr = (struct in_addr*)(&ip_header->ip_src);
-        printf("%s (%s)  %f ms\n", recv_addr->)
+	struct addrinfo *addr_infos = NULL;
+	struct sockaddr_in *addr = NULL;
+	char addr_ip[INET_ADDRSTRLEN];
 
-    }
+	if (resolve_addr_infos(argv[1], &addr_infos, &addr, addr_ip) != 0) {
+		if (addr_infos)
+			freeaddrinfo(addr_infos);
+		return 1;
+	}
+	printf("traceroute to %s (%s), %d hops max\n", argv[1], addr_ip, MAX_HOPS);
 
-    return 0;
+	int udp_sock, icmp_sock;
+	if (setup_sockets(addr_infos, &udp_sock, &icmp_sock) != 0) {
+		if (addr_infos)
+			freeaddrinfo(addr_infos);
+		return 1;
+	}
+
+	for (int ttl = 1; ttl <= MAX_HOPS; ttl++) {
+		if (setsockopt(udp_sock, SOL_IP, IP_TTL, &ttl, sizeof(ttl)) < 0) {
+			fprintf(stderr, "setsockopt error (set TTL): %s\n", strerror(errno));
+			break;
+		}
+		double rtts[NUM_PROBES];
+		int reached_destination = 0;
+		char router_ips[NUM_PROBES][INET_ADDRSTRLEN] = {0};
+		char hostnames[NUM_PROBES][NI_MAXHOST] = {0};
+		ft_memset(rtts, -1, sizeof(rtts));
+
+		for (int probe = 0; probe < NUM_PROBES; probe++)
+			run_probe(udp_sock, icmp_sock, addr, probe,
+					  rtts, router_ips, hostnames, &reached_destination);
+
+		print_results(ttl, router_ips, hostnames, rtts);
+
+		if (reached_destination) {
+			close(udp_sock);
+			close(icmp_sock);
+			freeaddrinfo(addr_infos);
+			return 0;
+		}
+	}
+	close(udp_sock);
+	close(icmp_sock);
+	freeaddrinfo(addr_infos);
+	return 0;
 }
