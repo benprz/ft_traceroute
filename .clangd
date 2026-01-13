@@ -1,9 +1,0 @@
-CompileFlags:
-    Add:
-        - "-I/Users/neben/Documents/code/42/ft_traceroute/inc"
-        - "--target=aarch64-linux-gnu"
-        - "--sysroot=/Users/neben/OrbStack/debian"
-
-Diagnostics:
-    MissingIncludes: NotStrict
-    UnusedIncludes: Strict
