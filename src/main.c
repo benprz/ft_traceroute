@@ -59,7 +59,6 @@ int main(int argc, char *argv[])
 {
 	if (argc < 2 || argc > 3 || (argc >= 2 && ft_strcmp(argv[1], "-h") == 0)) {
 		fprintf(stderr, "Usage: %s <host>\n", argv[0]);
-		fprintf(stderr, "Options:\n  -h\tShow this help message\n");
 		return 1;
 	}
 
